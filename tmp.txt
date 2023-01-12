@@ -1,0 +1,310 @@
+#!/usr/bin/php
+<?php
+
+define('MODE_INIT',   0);
+define('MODE_ERR',   -1);
+define('MODE_SHNET',  1);
+define('MODE_SUBNET', 2);
+
+define('DEF_STR_SHNETWORK', 'shared-network');
+define('DEF_STR_SUBNET',    'subnet');
+define('DF_SHNET', 'df_shared_nw');
+
+$debug = FALSE;
+
+
+function debugLog($str) {
+    global $debug;
+    if ($debug === TRUE) {
+        print($str . "\n");
+    }
+}
+
+function errorLog($str) {
+    print($str . "\n");
+}
+
+function checkMode($cur_mode, &$cur_shnet_name, &$cur_subnet,
+                     $line, &$deep_level, &$dhcpdconf_parsed)
+{
+    $matches = NULL;
+
+    $ptn_shnet = '/^' . DEF_STR_SHNETWORK .' (.*?){$/';
+    $ptn_subnet = '/^' . DEF_STR_SUBNET . ' (.*?) ' . 'netmask (.*?){$/';
+    $ptn_open_bracket = '/^(.*?){$/';
+
+    if (preg_match($ptn_shnet, $line, $matches) === 1) {
+        if ($cur_mode !== MODE_INIT) {
+            $logmsg = "Format dhcpd.config invalid.error=111";
+            errorLog($logmsg);
+            return MODE_ERR;
+        }
+
+        $deep_level++;
+        $shnet_name = $matches[1];
+        $cur_shnet_name = $shnet_name;
+        debugLog("shared-network=shnet_name");
+
+        /* store current shared-network */
+        $dhcpdconf_parsed[$shnet_name] = array();
+
+        return MODE_SHNET;
+
+    } else if (preg_match($ptn_subnet, $line, $matches) === 1) {
+
+        $deep_level++;
+
+        /* store current subnet */
+        $cur_subnet = sprintf("%s/%s", $matches[1], $matches[2]);
+        return MODE_SUBNET;
+
+    /* Found open bracket [{] */
+    } else if (preg_match($ptn_open_bracket, $line, $matches) === 1) {
+
+        if (($cur_mode !== MODE_SHNET) && ($cur_mode !== MODE_SUBNET)) {
+            $logmsg = "Format dhcpd.config invalid.error=112";
+            errorLog($logmsg);
+            return MODE_ERR;
+        }
+
+        $deep_level++;
+        return $cur_mode;
+
+    /* Found close backet [}] */
+    } else if ($line === "}") {
+
+       if ($deep_level < 1) {
+           $logmsg = "Format dhcpd.config invalid.error=113";
+           errorLog($logmsg);
+           return MODE_ERR;
+       }
+
+       $deep_level--;
+
+       if ($cur_mode === MODE_SHNET) {
+            if ($deep_level !== 0) {
+                $logmsg = "Format dhcpd.config invalid.error=114";
+                errorLog($logmsg);
+                return MODE_ERR;
+            }
+
+           return MODE_INIT;
+
+       } else if ($cur_mode === MODE_SUBNET) {
+
+           if ($deep_level === 1) {
+               return MODE_SHNET;
+           } else if ($deep_level == 0) {
+               return MODE_INIT;
+           } else {
+               return $cur_mode;
+           }
+       } else {
+            $logmsg = "Format dhcpd.config invalid.error=1";
+            errorLog($logmsg);
+           return MODE_ERR;
+       }
+    } else {
+        return $cur_mode;
+    }
+}
+
+function checkOverlapping($curArrIpaddr, $newIpaddr)
+{
+    foreach ($curArrIpaddr as $curIpaddr) {
+        if (($newIpaddr[0] >= $curIpaddr[0]) &&
+            ($newIpaddr[0] <= $curIpaddr[0])) {
+            return FALSE;
+        }
+
+        if (($newIpaddr[1] >= $curIpaddr[1]) &&
+            ($newIpaddr[1] <= $curIpaddr[1])) {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+function parseRange($cur_shnet_name, $cur_subnet, $line, &$dhcpdconf_parsed)
+{
+    $matches = NULL;
+    $ptn_range = '/^range (.*?) (.*?);$/';
+
+    if (preg_match($ptn_range, $line, $matches) !== 1) {
+        return TRUE;
+    }
+
+    $ipaddr_start_long = ip2long($matches[1]);
+    $ipaddr_end_long = ip2long($matches[2]);
+
+    if ($cur_shnet_name !== NULL) {
+        if (!isset($dhcpdconf_parsed[$cur_shnet_name][$cur_subnet])) {
+            $dhcpdconf_parsed[$cur_shnet_name][$cur_subnet] = [];
+        }
+        $retCheck = checkOverlapping(
+            $dhcpdconf_parsed[$cur_shnet_name][$cur_subnet],
+            [$ipaddr_start_long, $ipaddr_end_long]
+        );
+
+        if ($retCheck === FALSE) {
+            errorLog("Found Overlaping IPaddress");
+            return FALSE;
+        }
+
+        array_push($dhcpdconf_parsed[$cur_shnet_name][$cur_subnet],
+                   [$ipaddr_start_long, $ipaddr_end_long]);
+    } else {
+        if (!isset($dhcpdconf_parsed[DF_SHNET][$cur_subnet])) {
+            $dhcpdconf_parsed[DF_SHNET][$cur_subnet] = [];
+        }
+
+        $retCheck = checkOverlapping(
+            $dhcpdconf_parsed[DF_SHNET][$cur_subnet],
+            [$ipaddr_start_long, $ipaddr_end_long]
+        );
+
+        if ($retCheck === FALSE) {
+            errorLog("Found Overlaping IPaddress");
+            return FALSE;
+        }
+
+        array_push($dhcpdconf_parsed[DF_SHNET][$cur_subnet],
+                   [$ipaddr_start_long, $ipaddr_end_long]);
+    }
+
+    return TRUE;
+}
+
+function parseDhcpd($filepath, &$dhcpdconf_parsed)
+{
+    $dhcpconfig_data = file($filepath,
+        FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES
+    );
+
+    if ($dhcpconfig_data === FALSE) {
+        return FALSE;
+    }
+
+    $cur_mode = MODE_INIT;
+    $new_mode = MODE_INIT;
+    $deep_level = 0;
+    $cur_shnet_name = NULL;
+    $cur_subnet = NULL;
+
+    foreach ($dhcpconfig_data as $line) {
+
+        $line_trimed = trim($line);
+
+        /* 連続空白を一つスペースに調整 */
+        $line_tmp = preg_replace('/\s+/', ' ', $line_trimed);
+
+        debugLog("DEBUG:[$line_tmp]" );
+
+        $new_mode = checkMode($cur_mode, $cur_shnet_name, $cur_subnet,
+                              $line_tmp, $deep_level, $dhcpdconf_parsed);
+        if ($new_mode === MODE_ERR) {
+            errorLog("Error: $line");
+            return FALSE;
+
+        } else if ($new_mode === MODE_SUBNET) {
+            $ret_val = parseRange($cur_shnet_name, $cur_subnet,
+                                  $line_tmp, $dhcpdconf_parsed);
+            if ($ret_val === FALSE) {
+                errorLog("Error: $line");
+                return FALSE;
+            }
+
+        } else if ($new_mode === MODE_INIT) {
+            $cur_shnet_name = NULL;
+            $cur_subnet = NULL;
+        }
+
+        $cur_mode = $new_mode;
+
+        debugLog(sprintf("new_mode=%s:cur_mode=%s  deep_level=%s\n",
+                 $new_mode, $new_mode, $deep_level));
+    }
+
+    if ($cur_mode !== MODE_INIT) {
+        $logmsg = "Format dhcpd.config invalid.error=1";
+        errorLog($logmsg);
+        return FALSE;
+    }
+}
+
+function getNumberIpaddrUsed(&$dict_lease, $ipaddr)
+{
+    $count_used = 0;
+    $ipaddrStart = $ipaddr[0];
+    $ipaddrEnd = $ipaddr[1];
+
+    foreach ($dict_lease as $ipaddr_lease => $tmp_value) {
+        if ($ipaddr_lease > $ipaddrEnd) {
+            break;
+        }
+        if ($ipaddr_lease < $ipaddrStart) {
+            continue;
+        }
+
+        $count_used++;
+        unset($dict_lease);
+    }
+    return $count_used;
+}
+
+
+$filepath =  $argv[1];
+$dhcpdconf_parsed = array();
+$ret = parseDhcpd($filepath, $dhcpdconf_parsed);
+if ($ret === FALSE) {
+    errorLog("Error: Format file invalid");
+    exit(1);
+}
+
+$data_lease = [
+    '8.8.1.3',
+    '8.8.1.2',
+    '8.8.1.1',
+    '8.8.1.7',
+];
+
+$data_lease_long = [];
+foreach ($data_lease as $tmp) {
+    $ipaddr_long = ip2long($tmp);
+    $data_lease_long[] = $ipaddr_long;
+}
+
+sort($data_lease_long);
+
+$dict_lease = [];
+foreach ($data_lease_long as $tmp_ipaddr) {
+    $dict_lease[$tmp_ipaddr] = NULL;
+}
+
+
+ksort($dhcpdconf_parsed);
+
+$summary_data = [];
+foreach ($dhcpdconf_parsed as $shnet_name => $data_subnet) {
+    ksort($data_subnet);
+    $total_ipaddr_shnet = 0;
+    print("======================\n");
+    print($shnet_name . "\n");
+    foreach ($data_subnet as $nw_netmask => $data_range) {
+        print("  " . $nw_netmask . "\n");
+        $total_ipaddr_subnet = 0;
+        foreach ($data_range as $ipaddr) {
+
+            $num_ip_used = getNumberIpaddrUsed($dict_lease, $ipaddr);
+
+            $total_ipaddr_subnet += $ipaddr[1] - $ipaddr[0] - $num_ip_used;
+        }
+        print("    total_ipaddr_subnet=" . $total_ipaddr_subnet . "\n");
+        $total_ipaddr_shnet += $total_ipaddr_subnet;
+    }
+    print("    total_ipaddr_shnet=" . $total_ipaddr_shnet . "\n");
+    print("======================\n");
+}
+
+exit(0);
