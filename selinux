@@ -1,0 +1,87 @@
+https://www.tohoho-web.com/ex/selinux.html#restorecon
+
+echo "XXXXXXXX"| audit2allow -M my-mkdir2
+
+# cat my-mkdir.te
+
+module my-mkdir 1.0;
+
+require {
+        type httpd_t;
+        type user_home_t;
+        class file execute;
+}
+
+#============= httpd_t ==============
+allow httpd_t user_home_t:file execute;
+
+
+# cat my-mkdir2.te
+
+module my-mkdir2 1.0;
+
+require {
+        type httpd_t;
+        type user_home_t;
+        class file execute_no_trans;
+}
+
+
+# cat my-unixchkpwd.te
+
+module my-unixchkpwd 1.0;
+
+require {
+        type httpd_t;
+        type shadow_t;
+        class file { getattr open read };
+}
+
+#============= httpd_t ==============
+allow httpd_t shadow_t:file { open read };
+
+#!!!! This avc has a dontaudit rule in the current policy
+allow httpd_t shadow_t:file getattr;
+
+
+#============= httpd_t ==============
+allow httpd_t user_home_t:file execute_no_trans;
+
+------------------
+semanage fcontext -a -t httpd_sys_rw_content_t "/data/mail(/.*)?"
+semanage fcontext -a -t httpd_sys_rw_content_t "/data(/.*)?"
+semanage fcontext -l | grep /data/mail
+semanage fcontext -d "/data/mail(/.*)?"
+
+semanage fcontext -d "/data(/.*)?"
+semodule -i my-unixchkpwd.pp
+
+
+
+
+
+SELinuxブール値
+
+setsebool コマンドは SELinuxブール値を変更します。
+setsebool -P httpd_builtin_scripting off
+getsebool -a | grep httpd
+
+
+sesearch -b httpd_builtin_scripting -AC
+
+
+
+semanage fcontext -a -t httpd_sys_rw_content_t "/data/mail(/.*)?"
+
+tail -f /var/log/audit/audit.log | grep denied
+
+setsebool httpd_setrlimit on
+setsebool httpd_run_stickshift on
+
+
+semanage boolean -l | grep httpd_
+
+
+getsebool -a | grep httpd
+
+apache : PWD= USER=root ; COMMAND= pam_unix(systemd-user:session): session opened for user root(uid=0) by (uid=0)
