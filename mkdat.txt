@@ -1,0 +1,512 @@
+<?php
+
+include '/var/www/onsrss/classes/MySmarty.php';
+
+/* Define all tags */
+define('TAG_RSS_ID',    'id');
+define('TAG_RSS_TITLE', 'title');
+define('TAG_RSS_IMAGE', 'image');
+
+class MyData
+{
+    private $conf;
+    private $setting;
+
+    private $_cur_public_dir;
+    private $_new_public_dir;
+    private $_old_public_dir;
+
+    private $_sort_by = 'DESC';
+    private $_order_by = 'title';
+
+    const PAGE_DETAIL_PATH_FMT = '%s/%s/detail';
+    const PAGE_LIST_PATH_FMT  = '%s/%s/list';
+    const PAGE_TOP_PATH_FMT    = '%s/%s/top';
+    const NEW_IMG_PATH_FMT     = '%s/%s/%s/data';
+    const PRIV_IMG_PATH_FMT    = '%s/%s/%s';
+
+    public function __construct($conf, $setting, $conn)
+    {
+        $this->conf = $conf;
+        $this->setting = $setting;
+        $this->db = $conn;
+
+        /* FOR TEST */
+        $new_public_dir = $newpublic_dir = $this->conf['tmp_dir'] . "." .  time();
+        $cur_public_dir = $this->conf['public_dir'];
+        $old_public_dir = $this->conf['public_dir'] . ".old";
+
+        $this->setNewPublicDir($new_public_dir);
+        $this->setCurPublicDir($cur_public_dir);
+        $this->setOldPublicDir($old_public_dir);
+    }
+
+    public function setCurPublicDir($cur_public_dir)
+    {
+        $this->_cur_public_dir = $cur_public_dir;
+    }
+
+    public function setNewPublicDir($new_public_dir)
+    {
+        $this->_new_public_dir = $new_public_dir;
+    }
+
+    public function setoldPublicDir($old_public_dir)
+    {
+        $this->_old_public_dir = $old_public_dir;
+    }
+
+    public function setCondSort($sort_by, $order_by)
+    {
+        $this->_sort_by = $sort_by;
+        $this->_order_by = $order_by;
+    }
+
+    public function mk_all_data($order_by = NULL, $sort_by = NULL)
+    {
+        foreach ($this->setting as $s_id => $s_id_conf) {
+            $ret = $this->mk_page_data($s_id,
+                         $newpublic_dir);
+            if ($ret === FALSE) {
+                errorLog("Failed to mk page data.(s_id=$s_id)");
+                return FALSE;
+            }
+        }
+
+        /* Process public dir */
+        $ret = $this->proc_public_dir();
+        if ($ret === FALSE) {
+            return FALSE;
+        }
+
+        return TRUE;
+    }
+
+    public function mk_page_data($s_id,  $newpublic_dir)
+    {
+        /* make page detail */
+        $ret = $this->mk_page_detail($s_id,  $newpublic_dir);
+        if ($ret === FALSE) {
+            return FALSE;
+        }
+
+        /* make page list */
+        $ret = $this->mk_page_list($s_id,  $newpublic_dir);
+        if ($ret === FALSE) {
+            return FALSE;
+        }
+
+        /* make page top */
+        $ret = $this->mk_page_top($s_id,  $newpublic_dir);
+        if ($ret === FALSE) {
+            return FALSE;
+        }
+    }
+
+    public function mk_page_detail($s_id)
+    {
+        debugLog(__METHOD__ . ":Start ");
+
+        /* Read template */
+        $smarty = new MySmarty();
+
+        $page_detail_tmpl = $this->setting[$s_id]['page_detail_tmpl'];
+        $pagedetail_name_fmt = $this->setting[$s_id]['page_detail'];
+
+        /* cur_public_dir */
+        $cur_pagedetail_dir = sprintf(self::PAGE_DETAIL_PATH_FMT,
+                $this->_cur_public_dir, $s_id);
+
+        /* new_public_dir */
+        $new_pagedetail_dir = sprintf(self::PAGE_DETAIL_PATH_FMT,
+                $this->_new_public_dir, $s_id);
+
+        $ret = $this->makeDir($new_pagedetail_dir);
+        if ($ret === FALSE) {
+            errorLog(__METHOD__ . ":Failed to makeDir:($new_pagedetail_dir)");
+            return FALSE;
+        }
+
+        $sql = "SELECT * FROM onsdata"
+             . " WHERE s_id='$s_id'"
+             . " AND status = 1 AND html_status = 1"
+             . " ORDER BY $this->_order_by $this->_sort_by";
+
+        debugLog(__METHOD__ . ":sql=" . $sql);
+
+        $result = $this->db->query($sql);
+        if ($result === FALSE) {
+             errorLog(__METHOD__ . ":Failed to query");
+            return FALSE;
+        }
+
+        while($row = $result->fetch_assoc()) {
+
+            debugLog(__METHOD__ . ":start processing id=" . $row['id']);
+
+            /* Get subdir by id */
+            $subdir = getSubdirById($row['id']);
+
+            /* Create page detail name in cur_public_dir*/
+            $cur_pagedetail_name = sprintf($pagedetail_name_fmt, $row['id']);
+
+            /* Path to file cur_page_detail */
+            $cur_pagedetail_path = $cur_pagedetail_dir. "/" . $cur_pagedetail_name;
+
+            /* Path to image of cur_page_detail */
+            $cur_image_path = sprintf(self::NEW_IMG_PATH_FMT,
+                    $cur_pagedetail_dir, $subdir, $s_id, $row['image']);
+
+            /* Create page detail name in new_public_dir*/
+            $new_pagedetail_name = sprintf($pagedetail_name_fmt, $row['id']);
+
+            /* Path to file new_page_detail */
+            $new_pagedetail_path = $new_pagedetail_dir. "/" . $new_pagedetail_name;
+
+            /* Path to image of new_page_detail */
+            $new_img_dir = sprintf(self::NEW_IMG_PATH_FMT,
+                    $this->_new_public_dir, $s_id, $subdir);
+
+            /* Path to image of new_page_detail */
+            $new_image_path = $new_img_dir . "/" . $row['image'];
+
+            if (is_dir($new_img_dir) === FALSE) {
+                $ret = $this->makeDir($new_img_dir);
+                if ($ret === FALSE) {
+                     errorLog(__METHOD__ . ":Failed to makeDir:($new_img_dir)");
+                     return FALSE;
+                }
+            }
+
+            /* Do not generate files if there are no changes */
+            if ($row['mod_status'] == 0) {
+                /* If existext cur page detail then create hard link */
+                if (is_file($cur_pagedetail_name)) {
+                    $ret = makeLink($cur_pagedetail_path, $new_pagedetail_path);
+                    if ($ret === FALSE) {
+                        return FALSE;
+                    }
+                } else {
+                    infoLog(__METHOD__ .
+                        "No exist page detail.($cur_pagedetail_name)");
+                }
+                /* if not exist cur page detail then create new as bellow */
+            }
+
+            /* Path to private image */
+            $private_img_path = sprintf(self::PRIV_IMG_PATH_FMT,
+                    $this->conf['private_img'], $subdir, $row['image']);
+
+            /* Create hard link to private_img */
+            $ret = $this->makeLink($private_img_path, $new_image_path);
+            if ($ret === FALSE) {
+                errorLog(__METHOD__ .
+                    ":Failed to makeLink:($private_img_path -> $new_image_path)");
+                return FALSE;
+            }
+
+            /* Prepare tags replace */
+            $tags = array(
+                TAG_RSS_ID     => $row['id'],
+                TAG_RSS_TITLE  => $row['title'],
+                TAG_RSS_IMAGE  => $row['image'],
+            );
+
+            /* Assign tags */
+            $smarty->assign($tags);
+
+            /* Create page data */
+            $page_data = $smarty->display($page_detail_tmpl, TRUE);
+
+            /* Write to file output*/
+            $ret = file_put_contents($new_pagedetail_path, $page_data);
+            if ($ret === FALSE) {
+                errorLog(__METHOD__ .
+                    ":Failed to put contents to file.($new_pagedetail_path)");
+                return FALSE;
+            }
+            debugLog(__METHOD__ . ":end processing id=" . $row['id']);
+        }
+
+        debugLog(__METHOD__ . ":Finish");
+
+        return TRUE;
+    }
+
+    public function mk_page_list($s_id)
+    {
+        debugLog(__METHOD__ . ":Start ");
+
+        /* cur_public_dir */
+        $cur_pagelist_dir = sprintf(self::PAGE_LIST_PATH_FMT,
+                $this->_cur_public_dir, $s_id);
+
+        /* new_public_dir */
+        $new_pagelist_dir = sprintf(self::PAGE_LIST_PATH_FMT,
+                $this->_new_public_dir, $s_id);
+
+        $ret = $this->makeDir($new_pagelist_dir);
+        if ($ret === FALSE) {
+            errorLog(__METHOD__ . ":Failed to makeDir:($new_pagelist_dir)");
+            return FALSE;
+        }
+
+        $paging_num = $this->setting[$s_id]['paging_num'];
+
+        $sql_count = "SELECT count(*) FROM onsdata"
+             . " WHERE s_id='$s_id'"
+             . " AND status = 1 AND html_status = 1"
+             . " ORDER BY $this->_order_by $this->_sort_by";
+
+        debugLog(__METHOD__ . ":sql_count=" . $sql_count);
+
+        $result = $this->db->query($sql_count);
+        if ($result === FALSE) {
+             errorLog(__METHOD__ . ":Failed to query");
+            return FALSE;
+        }
+
+        $row = $result->fetch_assoc();
+
+        $total_rec = $row['count(*)'];
+        $max_pages = ceil($total_rec/ $paging_num);
+
+        debugLog(__METHOD__ .
+          ":total_rec=$total_rec, max_pages=$max_pages, paging_num=$paging_num");
+
+        for ($cur_page = 1; $cur_page <= $max_pages; $cur_page++) {
+            $offset = ($cur_page - 1) * $paging_num;
+
+            $sql = "SELECT * FROM onsdata"
+                 . " WHERE s_id='$s_id'"
+                 . " AND status = 1 AND html_status = 1"
+                 . " ORDER BY $this->_order_by $this->_sort_by"
+                 . " LIMIT $offset,$paging_num";
+
+            $result = $this->db->query($sql);
+            if ($result === FALSE) {
+                errorLog(__METHOD__ . ":Failed to query.($sql)");
+                return FALSE;
+            }
+
+            $ret = $this->proc_mk_pagelist($s_id, $new_pagelist_dir,
+                    $result, $cur_page, $max_pages, $total_rec);
+            if ($result === FALSE) {
+                errorLog(__METHOD__ . ":Failed to proc mk page list.(cur_page$cur_page)");
+                return FALSE;
+            }
+        }
+
+        debugLog(__METHOD__ . ":Start ");
+    }
+
+    public function proc_mk_pagelist($s_id, $new_pagelist_dir,
+            $result, $cur_page, $total_page, $total_rec)
+    {
+         debugLog(__METHOD__ . ":start");
+
+         $page_list_tmpl = $this->setting[$s_id]['page_list_tmpl'];
+         $pagelist_name_fmt = $this->setting[$s_id]['page_list'];
+
+         /* Create page list name in new_public_dir*/
+         $new_pagelist_name = sprintf($pagelist_name_fmt, $cur_page);
+
+         /* Path to file new_page_detail */
+         $new_pagelist_path = $new_pagelist_dir. "/" . $new_pagelist_name;
+
+         /* Read template */
+         $smarty = new MySmarty();
+
+         if ($cur_page >= 2) {
+             $prev_page = $cur_page - 1;
+         } else {
+             $prev_page = 0;
+         }
+
+         if ($cur_page < $total_page) {
+             $next_page = $cur_page + 1;
+         } else {
+             $next_page = 0;
+         }
+
+         $arr_tags = [
+             'data_rss'   => [],
+             'cur_page'   => $cur_page,
+             'next_page'  => $next_page,
+             'prev_page'  => $prev_page,
+             'total_page' => $total_page,
+             'total_rec'  => $total_rec,
+         ];
+
+         while($row = $result->fetch_assoc()) {
+
+            debugLog(__METHOD__ . ":start processing id=" . $row['id']);
+
+            /* Get subdir by id */
+            $subdir = getSubdirById($row['id']);
+
+            /* Path to image of new_page_detail */
+            $new_img_dir = sprintf(self::NEW_IMG_PATH_FMT,
+                    $this->_new_public_dir, $s_id, $subdir);
+
+            /* Path to image of new_page_detail */
+            $new_image_path = $new_img_dir . "/" . $row['image'];
+
+            $tags = array(
+                'id'  => $row['title'],
+                'title'  => $row['title'],
+                'image'  => $row['image'],
+            );
+
+            $arr_tags['data_rss'][] = $tags;
+
+            debugLog(__METHOD__ . ":end processing id=" . $row['id']);
+
+        }
+
+        /* Assign tags */
+        $smarty->assign($arr_tags);
+
+        /* Create page data */
+        $page_data = $smarty->display($page_list_tmpl, TRUE);
+
+        /* Write to file output*/
+        $ret = file_put_contents($new_pagelist_path, $page_data);
+        if ($ret === FALSE) {
+            errorLog(__METHOD__ .
+                ":Failed to put contents to file.($new_pagelist_path)");
+            return FALSE;
+        }
+
+        debugLog(__METHOD__ . ":finish");
+
+        return TRUE;
+    }
+
+    public function mk_page_top($s_id)
+    {
+        debugLog(__METHOD__ . ":start");
+
+        $arr_tags = [
+            'data_rss' => [],
+        ];
+
+        $smarty = new MySmarty();
+        $page_top_tmpl = $this->setting[$s_id]['page_top_tmpl'];
+        $pagetop_name = $this->setting[$s_id]['page_top'];
+
+        /* new_public_dir */
+        $new_pagetop_dir = sprintf(self::PAGE_TOP_PATH_FMT,
+                $this->_new_public_dir, $s_id);
+
+        /* new_public_dir */
+        $new_pagetop_dir = sprintf(self::PAGE_TOP_PATH_FMT,
+                $this->_new_public_dir, $s_id);
+
+        /* Path to file new_page_detail */
+        $new_pagetop_path = $new_pagetop_dir. "/" . $pagetop_name;
+
+        $ret = $this->makeDir($new_pagetop_dir);
+        if ($ret === FALSE) {
+            errorLog(__METHOD__ . ":Failed to makeDir:($new_pagetop_dir)");
+            return FALSE;
+        }
+
+        $max_rec = $this->setting[$s_id]['page_top_num'];
+
+        $sql = "SELECT * FROM onsdata"
+             . " WHERE s_id='$s_id'"
+             . " AND status = 1 AND html_status = 1 AND mod_status = 1"
+             . " ORDER BY $this->_order_by $this->_sort_by"
+             . " LIMIT $max_rec";
+
+        debugLog(__FUNCTION__ . ":sql=" . $sql);
+
+        $result = $this->db->query($sql);
+        if ($result === FALSE) {
+            return FALSE;
+        }
+
+        while($row = $result->fetch_assoc()) {
+            $tags = array(
+                'id'  => $row['title'],
+                'title'  => $row['title'],
+                'image'  => $row['image'],
+            );
+
+            $arr_tags['data_rss'][] = $tags;
+        }
+
+        $smarty->assign($arr_tags);
+        $page_data = $smarty->display($page_top_tmpl, TRUE);
+
+        $ret = file_put_contents($new_pagetop_path, $page_data);
+        if ($ret === FALSE) {
+            errorLog(__METHOD__ .
+                ":Failed to put contents to file.($new_pagetop_path)");
+            return FALSE;
+        }
+
+        debugLog(__METHOD__ . ":finish");
+
+        return TRUE;
+    }
+
+    public function makeDir($directory)
+    {
+        if (is_dir($directory) === FALSE) {
+            $ret = mkdir($directory, 0755, TRUE);
+            if ($ret === FALSE) {
+                return FALSE;
+            }
+        }
+        return TRUE;
+    }
+
+    public function makeLink(string $target, string $link)
+    {
+        $ret = @link($target, $link);
+        if ($ret === FALSE) {
+            return FALSE;
+        }
+        return TRUE;
+    }
+
+    public function renameDir(string $from, string $to)
+    {
+        $ret = @rename($from, $to);
+        if ($ret === FALSE) {
+            return FALSE;
+        }
+        return TRUE;
+    }
+
+    public function proc_public_dir()
+    {
+        $public_dir_old = $public_dir . ".old";
+        $public_dir_old_tmp = $public_dir . ".old." . getmypid();
+
+        if (is_dir($public_dir_old)) {
+            $this->renameDir($public_dir_old, $public_dir_old_tmp);
+        }
+
+        if (is_dir($public_dir)) {
+            $ret = $this->renameDir($public_dir, $public_dir_old);
+            if ($ret === FALSE) {
+                return FALSE;
+            }
+
+            $ret = $this->renameDir($public_dir_new, $public_dir);
+            if ($ret === FALSE) {
+                $ret = $this->renameDir($public_dir_old, $public_dir);
+                if ($ret === FALSE) {
+                    return FALSE;
+                }
+                $ret = $this->renameDir($public_dir_tmp, $public_dir_old);
+                if ($ret === FALSE) {
+                    return FALSE;
+                }
+            }
+        }
+    }
+}
