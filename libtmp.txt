@@ -1,0 +1,23 @@
+function getSubdirById($rss_id)
+{
+    $arr_len = 0;
+    $arr_dir = [];
+
+    $hash = [
+        "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+        "a", "b", "c", "d", "e", "f", "g",
+    ];
+
+    foreach ($hash as $s1) {
+        foreach ($hash as $s2) {
+            foreach ($hash as $s3) {
+                $arr_dir[] = $s1 . $s2 . $s3;
+                $arr_len++;
+            }
+        }
+    }
+
+    $idx = $rss_id % $arr_len;
+
+    return $arr_dir[$idx - 1];
+}
