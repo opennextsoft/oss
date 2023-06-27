@@ -1,0 +1,42 @@
+import java.net.InetAddress;
+import java.net.Inet4Address;
+import java.net.UnknownHostException;
+
+class Main
+{
+    public static boolean isValidInet4Address(String ip)
+    {
+        try {
+            return Inet4Address.getByName(ip)
+                        .getHostAddress().equals(ip);
+        } catch (UnknownHostException ex) {
+            return false;
+        }
+    }
+
+    public static long convertIpToLong(String ipAddress) throws UnknownHostException {
+            InetAddress inetAddress = InetAddress.getByName(ipAddress);
+            byte[] address = inetAddress.getAddress();
+            long ipNum = ((address[0] & 0xff) << 24) | ((address[1] & 0xff) << 16) | ((address[2] & 0xff) << 8) | (address[3] & 0xff);
+            return ipNum;
+    }
+
+    public static void main(String[] args)  throws UnknownHostException
+    {
+        final String INET4ADDRESS = "1.1.1.1";
+        long lIpAddress;
+
+        if (isValidInet4Address(INET4ADDRESS)) {
+            System.out.print("The IP address " + INET4ADDRESS + " is valid\n");
+        } else {
+            System.out.print("The IP address " + INET4ADDRESS + " isn't valid\n");
+        }
+
+        try {
+            lIpAddress  = convertIpToLong(INET4ADDRESS);
+            System.out.println(lIpAddress);
+        } catch (UnknownHostException e) {
+            System.err.println(e.getMessage() + ":error");
+        }
+    }
+}
