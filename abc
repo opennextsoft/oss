@@ -1,0 +1,31 @@
+<?php
+
+function getValueNode($html, $tag_name, $position_extract)
+{
+    /* Create a new DOM document */
+    $dom = new DOMDocument;
+
+    /* Parse the HTML */
+    $ret = @$dom->loadHTML($html);
+    if ($ret === FALSE) {
+        return FALSE;
+    }
+
+    $nodes = $dom->getElementsByTagName($tag_name);
+
+    $count = 0;
+
+    /* Iterate over the extracted node */
+    foreach ($nodes as $node) {
+       $count++;
+       if ($count == $position_extract) {
+          return $node->nodeValue;
+       }
+    }
+
+    return "";
+}
+
+$test = "<p>aaaaaaaaaaaaaaaaa</p><p>bbbbbbbb<p>bbbbb<p>";
+$tmp = getValueNode($test, "p", 2);
+var_dump($tmp);
