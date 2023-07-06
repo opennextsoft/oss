@@ -29,3 +29,6 @@ function getValueNode($html, $tag_name, $position_extract)
 $test = "<p>aaaaaaaaaaaaaaaaa</p><p>bbbbbbbb<p>bbbbb<p>";
 $tmp = getValueNode($test, "p", 2);
 var_dump($tmp);
+
+
+$smarty->clear_compiled_tpl();
