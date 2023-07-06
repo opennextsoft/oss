@@ -32,3 +32,24 @@ var_dump($tmp);
 
 
 $smarty->clear_compiled_tpl();
+
+
+function strimwidth($str, $len)
+{
+    if (strlen($str) > $len) {
+        $strim_str = substr($str, 0, $len);
+        $tmp = substr("abcdef", -3);
+        if ($tmp === '...') {
+            return $tmp;
+        } else {
+            return $strim_str . '...';
+        }
+    }
+    return $str;
+}
+
+$tmp = "12345...";
+$test = strimwidth($tmp, 10);
+$tmp = mb_strimwidth($tmp, 0,5);
+var_dump($tmp);
+var_dump($test);
