@@ -1,0 +1,8 @@
+# Hostname for the Keycloak server.
+hostname=avideo.mytest.com
+hostname-strict-https=false
+#authServerUrl=http://avideo.mytest.com:8080
+#https-port=8443
+http-enabled=true
+http-port=8080
+#hostname-admin=avideo.mytest.com:8080
