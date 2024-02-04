@@ -1,0 +1,361 @@
+set_D2()
+{
+    set_D1
+    return
+}
+
+set_D3()
+{
+    set_D1
+    return
+}
+
+set_D4()
+{
+    set_D1
+    return
+}
+
+set_D5()
+{
+    return
+}
+
+set_D6()
+{
+    set_D1
+    return
+}
+
+set_D1()
+{
+    MS=0
+    M_S_C_H=0
+    M_S_H=0
+    M_V_H=0
+    M_Q=0
+    L_S_C_T=0
+    L_S_R_T=0
+    L_S_F_T=0
+    L_M_W=0
+    L_M_B=0
+
+    if [ ${E_S} -eq 0 ]; then
+        if [ ${C_E} -eq 0 ]; then
+
+            # NORMAL mail
+            if [ ${M_T} -eq 0 ];then
+
+                if [ ${W} -eq 0 ];then
+                    if [ ${B} -eq 0 ];then
+                        MS=1
+                        M_S_C_H=2
+                        M_S_H=1
+                        M_V_H=2
+                        M_Q=2
+                        L_S_C_T=2
+                        L_S_R_T=2
+                        L_S_F_T=1
+                        L_M_W=1
+                        L_M_B=1
+                    elif [ ${B} -eq 1 ];then
+                        MS=1
+                        M_S_C_H=2
+                        M_S_H=2
+                        M_V_H=2
+                        M_Q=2
+                        L_S_C_T=2
+                        L_S_R_T=2
+                        L_S_F_T=1
+                        L_M_W=1
+                        L_M_B=2
+                    else
+                        echo "invalid_5"
+                    fi
+                elif [ ${W} -eq 1 ];then
+                    if [ ${B} -eq 0 ];then
+                        :
+                    elif [ ${B} -eq 1 ];then
+                        :
+                    else
+                        :
+                    fi
+                    MS=1
+                    M_S_C_H=2
+                    M_S_H=1
+                    M_V_H=2
+                    M_Q=2
+                    L_S_C_T=2
+                    L_S_R_T=2
+                    L_S_F_T=1
+                    L_M_W=2
+                    L_M_B=1
+                else
+                    echo "invalid_4"
+                fi
+
+            # VIRUS mail
+            elif [ ${M_T} -eq 1 ];then
+                MS=1
+                M_S_C_H=1
+                M_S_H=1
+                M_V_H=1
+                M_Q=1
+                L_S_C_T=1
+                L_S_R_T=1
+                L_S_F_T=1
+
+            # SPAM mail
+            elif [ ${M_T} -eq 2 ];then
+                if [ ${W} -eq 0 ];then
+                    if [ ${B} -eq 0 ];then
+                        MS=1
+                        M_S_C_H=2
+                        M_S_H=1
+                        M_V_H=2
+                        M_Q=2
+                        L_S_C_T=2
+                        L_S_R_T=2
+                        L_S_F_T=2
+                        L_M_W=1
+                        L_M_B=1
+                    elif [ ${B} -eq 1 ];then
+                        MS=1
+                        M_S_C_H=2
+                        M_S_H=2
+                        M_V_H=2
+                        M_Q=2
+                        L_S_C_T=2
+                        L_S_R_T=2
+                        L_S_F_T=2
+                        L_M_W=1
+                        L_M_B=2
+                    else
+                        echo "invalid_5"
+                    fi
+                elif [ ${W} -eq 1 ];then
+                    if [ ${B} -eq 0 ];then
+                        :
+                    elif [ ${B} -eq 1 ];then
+                        :
+                    else
+                        :
+                    fi
+                    MS=1
+                    M_S_C_H=2
+                    M_S_H=1
+                    M_V_H=2
+                    M_Q=2
+                    L_S_C_T=2
+                    L_S_R_T=2
+                    L_S_F_T=2
+                    L_M_W=2
+                    L_M_B=1
+                else
+                    echo "invalid_4"
+                fi
+            else
+                echo "invalid_2"
+            fi
+
+        #spam_check=off
+        elif [ ${C_E} -eq 1 ]; then
+            MS=1
+            M_S_C_H=1
+            M_S_H=1
+            M_V_H=1
+            M_Q=1
+            L_S_C_T=1
+            L_S_R_T=1
+            L_S_F_T=1
+            L_M_W=1
+            L_M_B=1
+
+        # spam_check=domain
+        elif [ ${C_E} -eq 2 ]; then
+            # NORMAL mail
+            if [ ${M_T} -eq 0 ];then
+
+                if [ ${W} -eq 0 ];then
+                    if [ ${B} -eq 0 ];then
+                        MS=1
+                        M_S_C_H=2
+                        M_S_H=1
+                        M_V_H=2
+                        M_Q=2
+                        L_S_C_T=2
+                        L_S_R_T=2
+                        L_S_F_T=1
+                        L_M_W=1
+                        L_M_B=1
+                    elif [ ${B} -eq 1 ];then
+                        MS=1
+                        M_S_C_H=2
+                        M_S_H=2
+                        M_V_H=2
+                        M_Q=2
+                        L_S_C_T=2
+                        L_S_R_T=2
+                        L_S_F_T=1
+                        L_M_W=1
+                        L_M_B=2
+                    else
+                        echo "invalid_5"
+                    fi
+                elif [ ${W} -eq 1 ];then
+                    if [ ${B} -eq 0 ];then
+                        :
+                    elif [ ${B} -eq 1 ];then
+                        :
+                    else
+                        :
+                    fi
+                    MS=1
+                    M_S_C_H=2
+                    M_S_H=1
+                    M_V_H=2
+                    M_Q=2
+                    L_S_C_T=2
+                    L_S_R_T=2
+                    L_S_F_T=1
+                    L_M_W=2
+                    L_M_B=1
+                else
+                    echo "invalid_4"
+                fi
+
+            # VIRUS mail
+            elif [ ${M_T} -eq 1 ];then
+                MS=1
+                M_S_C_H=1
+                M_S_H=1
+                M_V_H=1
+                M_Q=1
+                L_S_C_T=1
+                L_S_R_T=1
+                L_S_F_T=1
+
+            # SPAM mail
+            elif [ ${M_T} -eq 2 ];then
+                if [ ${W} -eq 0 ];then
+                    if [ ${B} -eq 0 ];then
+                        MS=1
+                        M_S_C_H=2
+                        M_S_H=1
+                        M_V_H=2
+                        M_Q=2
+                        L_S_C_T=2
+                        L_S_R_T=2
+                        L_S_F_T=2
+                        L_M_W=1
+                        L_M_B=1
+                    elif [ ${B} -eq 1 ];then
+                        MS=1
+                        M_S_C_H=2
+                        M_S_H=2
+                        M_V_H=2
+                        M_Q=2
+                        L_S_C_T=2
+                        L_S_R_T=2
+                        L_S_F_T=2
+                        L_M_W=1
+                        L_M_B=2
+                    else
+                        echo "invalid_5"
+                    fi
+                elif [ ${W} -eq 1 ];then
+                    if [ ${B} -eq 0 ];then
+                        :
+                    elif [ ${B} -eq 1 ];then
+                        :
+                    else
+                        :
+                    fi
+                    MS=1
+                    M_S_C_H=2
+                    M_S_H=1
+                    M_V_H=2
+                    M_Q=2
+                    L_S_C_T=2
+                    L_S_R_T=2
+                    L_S_F_T=2
+                    L_M_W=2
+                    L_M_B=1
+                else
+                    echo "invalid_4"
+                fi
+            else
+                echo "invalid_2"
+            fi
+        else
+            echo "invalid_8"
+        fi
+
+    elif [ ${E_S} -eq 1 ]; then
+        MS=1
+        M_S_C_H=1
+        M_S_H=1
+        M_V_H=1
+        M_Q=1
+        L_S_C_T=1
+        L_S_R_T=1
+        L_S_F_T=1
+        L_M_W=1
+        L_M_B=1
+    else
+       echo "invalid_1"
+    fi
+
+    echo "${MS} ${M_S_C_H} ${M_S_H} ${M_V_H} ${M_Q} ${L_S_C_T} ${L_S_R_T} ${L_S_F_T} ${L_M_W} ${L_M_B}"
+}
+
+mk_testcase()
+{
+    E_1=`set_D1`
+    E_2=`set_D2`
+    E_3=`set_D3`
+    E_4=`set_D4`
+    E_5=`set_D5`
+    E_6=`set_D6`
+    echo ${N} ${E_S} ${C_E} ${D1} ${D2} ${D3} ${D4} ${D5} ${D6} ${W} ${B} ${E_1} ${E_2} ${E_3} ${E_4} ${E_5} ${E_6}
+}
+
+#
+#MAIN
+#
+N=1
+for E_S in {0..1}
+do
+    for C_E in {0..2}
+    do
+        for D1 in {0..1}
+        do
+            for D2 in {0..1}
+            do
+                for D3 in {0..1}
+                do
+                    for D4 in {0..1}
+                    do
+                        for D5 in {0..1}
+                        do
+                           for M_T in {0..1}
+                           do
+                               for M_F in {0..1}
+                               do
+                                   for W in {0..1}
+                                   do
+                                     for B in {0..1}
+                                     do
+                                         mk_testcase
+                                         N=`expr ${N} + 1`
+                                     done
+                                   done
+                               done
+                           done
+                        done
+                    done
+                done
+            done
+        done
+    done
+done
